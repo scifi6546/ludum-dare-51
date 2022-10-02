@@ -13,10 +13,9 @@ use loading::{LoadingPlugin, TextureAssets};
 pub enum GameState {
     Loading,
     Game,
+    GameOver,
 }
 pub const LAUNCHER_TITLE: &str = "Bevy Shell - Template";
-#[derive(Component)]
-struct PlayerLabel;
 
 pub fn app() -> App {
     let mut app = App::new();

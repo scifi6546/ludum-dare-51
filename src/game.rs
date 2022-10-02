@@ -1,35 +1,46 @@
-use crate::{GameState, PlayerLabel};
+mod player;
+mod ui;
+
+use crate::GameState;
 use bevy::{
     input::{keyboard::KeyCode, Input},
     prelude::*,
     sprite::MaterialMesh2dBundle,
 };
+use bevy_rapier2d::{prelude::*, rapier::dynamics::RigidBodyBuilder};
+use bevy_turborand::{prelude::*, *};
+pub use player::{PlayerCoolingTimer, PlayerFuel, PlayerLabel};
 use std::time::Duration;
 
-use bevy_rapier2d::{prelude::*, rapier::dynamics::RigidBodyBuilder};
 struct PlayerCollisions {
     entities: Vec<(Entity, Entity)>,
 }
+#[derive(Component)]
+pub struct GameEntity;
 pub struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(
             100.0,
         ))
+        .add_plugin(ui::UiPlugin)
+        .add_plugin(RngPlugin::default())
         .add_plugin(RapierDebugRenderPlugin::default())
+        .add_plugin(player::PlayerPlugin)
         .add_system_set(
             SystemSet::on_enter(GameState::Game)
-                .with_system(spawn_boss)
-                .with_system(spawn_player)
+                .with_system(spawn_scene)
                 .with_system(insert_spawn),
         )
         .add_system_set(
             SystemSet::on_update(GameState::Game)
-                .with_system(input_system)
                 .with_system(handle_collision)
                 .with_system(tick_spawn),
         )
-        .add_system_to_stage(CoreStage::PostUpdate, collision);
+        .add_system_to_stage(CoreStage::PostUpdate, collision)
+        .add_system_set(
+            SystemSet::on_exit(GameState::Game).with_system(despawn_entity),
+        );
     }
 }
 #[derive(Component, Clone, Copy, PartialEq)]
@@ -41,23 +52,11 @@ pub enum CollisionTag {
 pub struct FuelTag;
 #[derive(Bundle, Default)]
 struct FuelBundle {}
-fn spawn_boss(
+fn spawn_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let radius = 80.0;
-    commands
-        .spawn_bundle(MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Circle::new(radius).into()).into(),
-            material: materials.add(ColorMaterial::from(Color::RED)),
-            transform: Transform::from_translation(Vec3::new(0.0, -100.0, 0.0)),
-            ..default()
-        })
-        .insert(Collider::ball(radius))
-        .insert(ActiveEvents::all())
-        .insert(Sensor)
-        .insert(FuelTag);
     commands
         .spawn_bundle(MaterialMesh2dBundle {
             mesh: meshes
@@ -67,19 +66,29 @@ fn spawn_boss(
             transform: Transform::from_translation(Vec3::new(0.0, -300.0, 0.0)),
             ..default()
         })
-        .insert(Collider::cuboid(50.0, 50.0));
+        .insert(Collider::cuboid(50.0, 50.0))
+        .insert(GameEntity);
+}
+fn despawn_entity(
+    mut commands: Commands,
+    entities: Query<Entity, With<GameEntity>>,
+) {
+    for entity in entities.iter() {
+        commands.entity(entity).despawn();
+    }
 }
 fn handle_collision(
     mut commands: Commands,
     mut set: ParamSet<(
-        Query<(&mut PlayerFuel, &CollisionTag), ()>,
+        Query<(&mut PlayerFuel, &mut PlayerCoolingTimer, &CollisionTag), ()>,
         Query<(Entity, &CollisionTag), With<FuelTag>>,
         Query<&mut CollisionTag, ()>,
     )>,
 ) {
-    for (mut fuel, tag) in set.p0().iter_mut() {
+    for (mut fuel, mut player_cooling, tag) in set.p0().iter_mut() {
         if *tag == CollisionTag::Collided {
-            fuel.add_fuel(100.0)
+            fuel.add_fuel(100.0);
+            player_cooling.refill_cooling();
         }
     }
     for (entity, tag) in set.p1().iter() {
@@ -106,79 +115,7 @@ fn collision(
         }
     }
 }
-fn input_system(
-    keyboard_input: Res<Input<KeyCode>>,
-    time: Res<Time>,
-    mut player_position: Query<
-        (&mut Velocity, &mut PlayerFuel),
-        With<PlayerLabel>,
-    >,
-) {
-    let player_speed = 1000.0;
-    for (mut p, mut fuel) in player_position.iter_mut() {
-        let mut req_change = Vec2::new(0.0, 0.0);
 
-        if keyboard_input.pressed(KeyCode::A) {
-            req_change.x -= time.delta_seconds() * player_speed;
-        }
-        if keyboard_input.pressed(KeyCode::D) {
-            req_change.x += time.delta_seconds() * player_speed;
-        }
-        if keyboard_input.pressed(KeyCode::W) {
-            req_change.y += time.delta_seconds() * player_speed;
-        }
-        if keyboard_input.pressed(KeyCode::S) {
-            req_change.y -= time.delta_seconds() * player_speed;
-        }
-
-        let mag = req_change.length();
-        let required = mag.min(fuel.amount);
-        let change = required * req_change.normalize();
-
-        if change.is_nan() {
-            return;
-        }
-        p.linvel.x += change.x;
-        p.linvel.y += change.y;
-        fuel.amount = (fuel.amount - required).max(0.0);
-    }
-}
-#[derive(Component)]
-struct PlayerFuel {
-    amount: f32,
-    max: f32,
-}
-impl PlayerFuel {
-    pub fn add_fuel(&mut self, amount: f32) {
-        self.amount = (self.amount + amount).max(self.max)
-    }
-}
-fn spawn_player(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
-    commands.spawn_bundle(Camera2dBundle::default());
-    let radius = 10.0;
-
-    commands
-        .spawn_bundle(MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Circle::new(radius).into()).into(),
-            material: materials.add(ColorMaterial::from(Color::BLUE)),
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-            ..default()
-        })
-        .insert(PlayerLabel)
-        .insert(Collider::ball(radius))
-        .insert(ActiveEvents::all())
-        .insert(RigidBody::Dynamic)
-        .insert(Velocity::zero())
-        .insert(Restitution::new(1.0))
-        .insert(PlayerFuel {
-            amount: 100.0,
-            max: 100.0,
-        });
-}
 #[derive(Default, Component)]
 struct FuelSpawnerLabel;
 #[derive(Component)]
@@ -186,7 +123,7 @@ struct FuelSpawner {
     timer: Timer,
 }
 impl FuelSpawner {
-    const RESPAWN_TIME_SEC: f32 = 10.0;
+    const RESPAWN_TIME_SEC: f32 = 1.0;
 }
 impl Default for FuelSpawner {
     fn default() -> Self {
@@ -199,39 +136,50 @@ impl Default for FuelSpawner {
 struct FuelSpawnerBundle {
     spawner: FuelSpawner,
     label: FuelSpawnerLabel,
+    rng: RngComponent,
 }
 
-fn insert_spawn(mut commands: Commands) {
+fn insert_spawn(mut commands: Commands, mut global_rng: ResMut<GlobalRng>) {
     commands.spawn_bundle(FuelSpawnerBundle {
         label: FuelSpawnerLabel,
+        rng: RngComponent::from(&mut global_rng),
         ..default()
     });
 }
 fn tick_spawn(
     mut commands: Commands,
-    mut query: Query<&mut FuelSpawner, ()>,
+    mut query: Query<(&mut FuelSpawner, &mut RngComponent), ()>,
     time: Res<Time>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let radius = 10.0;
-    for mut spawner in query.iter_mut() {
+    for (mut spawner, mut rng) in query.iter_mut() {
         spawner.timer.tick(time.delta());
         if spawner.timer.finished() {
+            let x = 100.0 * rng.f32_normalized();
+            let y = 100.0 * rng.f32_normalized();
+
             spawner.timer.reset();
+            spawner
+                .timer
+                .set_duration(Duration::from_secs_f32(rng.f32()));
             commands
                 .spawn_bundle(MaterialMesh2dBundle {
                     mesh: meshes.add(shape::Circle::new(radius).into()).into(),
                     material: materials.add(ColorMaterial::from(Color::RED)),
                     transform: Transform::from_translation(Vec3::new(
-                        0.0, -100.0, 0.0,
+                        x,
+                        -100.0 + y,
+                        0.0,
                     )),
                     ..default()
                 })
                 .insert(Collider::ball(radius))
                 .insert(ActiveEvents::all())
                 .insert(Sensor)
-                .insert(FuelTag);
+                .insert(FuelTag)
+                .insert(GameEntity);
         }
     }
 }

@@ -8,7 +8,8 @@ impl Plugin for LoadingPlugin {
         app.add_state(GameState::Loading).add_loading_state(
             LoadingState::new(GameState::Loading)
                 .continue_to_state(GameState::Game)
-                .with_collection::<TextureAssets>(),
+                .with_collection::<TextureAssets>()
+                .with_collection::<FontAssets>(),
         );
     }
 }
@@ -16,4 +17,11 @@ impl Plugin for LoadingPlugin {
 pub struct TextureAssets {
     //#[asset(path = "bevy.png")]
     //pub texture: Handle<Image>,
+}
+#[derive(AssetCollection)]
+pub struct FontAssets {
+    #[asset(path = "fonts/Silkscreen-Bold.ttf")]
+    pub silkscreen_bold: Handle<Font>,
+    #[asset(path = "fonts/Silkscreen-Regular.ttf")]
+    pub silkscreen: Handle<Font>,
 }
