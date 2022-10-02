@@ -1,4 +1,4 @@
-use super::{GameEntity, GameState, PlayerCoolingTimer};
+use super::{GameEntity, GameState, PlayerCoolingTimer, PlayerFuel};
 use crate::loading::FontAssets;
 use crate::KeyCode::V;
 use bevy::ecs::schedule::ShouldRun::No;
@@ -11,6 +11,10 @@ struct CoolingOverlay;
 struct GameOverMenuEntity;
 #[derive(Component)]
 struct ReturnButton;
+#[derive(Component)]
+struct FuelBar;
+#[derive(Component)]
+struct ScoreTag;
 mod colors {
     use bevy::prelude::*;
 
@@ -24,7 +28,7 @@ mod colors {
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_system_set(
-            SystemSet::on_enter(GameState::Game).with_system(ui_system),
+            SystemSet::on_enter(GameState::Game).with_system(spawn_game_ui),
         )
         .add_system_set(
             SystemSet::on_update(GameState::Game).with_system(ui_run),
@@ -50,7 +54,7 @@ fn clear_gameover(
         commands.entity(entity).despawn();
     }
 }
-fn ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
+fn spawn_game_ui(mut commands: Commands, fonts: Res<FontAssets>) {
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
@@ -59,6 +63,7 @@ fn ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                 flex_direction: FlexDirection::ColumnReverse,
                 justify_content: JustifyContent::SpaceBetween,
                 align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
 
                 ..default()
             },
@@ -79,33 +84,43 @@ fn ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                         },
                     )
                     .with_style(Style {
-                        align_self: AlignSelf::FlexEnd,
+                        //    align_self: AlignSelf::FlexEnd,
                         ..default()
                     }),
                 )
                 .insert(GameEntity);
-            parent.spawn_bundle(NodeBundle {
-                style: Style {
-                    size: Size::new(Val::Percent(100.0), colors::FUEL_BAR_SIZE),
+            parent
+                .spawn_bundle(NodeBundle {
+                    style: Style {
+                        size: Size::new(
+                            Val::Percent(80.0),
+                            colors::FUEL_BAR_SIZE,
+                        ),
+                        ..default()
+                    },
+                    color: colors::FUEL_BAR_COLOR.into(),
                     ..default()
-                },
-                color: colors::FUEL_BAR_COLOR.into(),
-                ..default()
-            });
+                })
+                .insert(FuelBar);
         });
 }
 fn ui_run(
-    player_query: Query<&PlayerCoolingTimer, ()>,
+    player_query: Query<(&PlayerCoolingTimer, &PlayerFuel), ()>,
     mut cooling_query: Query<&mut UiColor, With<CoolingOverlay>>,
+    mut fuel_bar_query: Query<&mut Style, With<FuelBar>>,
 ) {
     let player = player_query.iter().next();
     if player.is_none() {
         error!("player does not exist");
         return;
     }
-    let player = player.unwrap();
+    let (player, fuel_left) = player.unwrap();
     for mut color in cooling_query.iter_mut() {
         *color = Color::rgba(1.0, 0.0, 0.0, player.get_frac_used()).into();
+    }
+    for mut fuel_bar_style in fuel_bar_query.iter_mut() {
+        fuel_bar_style.size.width =
+            Val::Percent(100.0 * fuel_left.get_fuel_ratio_left());
     }
 }
 fn spawn_game_over(mut commands: Commands, fonts: Res<FontAssets>) {

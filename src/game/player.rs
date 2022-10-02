@@ -69,6 +69,10 @@ impl PlayerFuel {
     pub fn get_fuel(&self) -> f32 {
         self.amount
     }
+    /// gets percent of fuel left in range 0.0 to 1.0
+    pub fn get_fuel_ratio_left(&self) -> f32 {
+        (self.amount) / self.max
+    }
     pub fn set_fuel(&mut self, amount: f32) {
         self.amount = amount.max(0.0).min(self.max);
     }
