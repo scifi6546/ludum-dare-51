@@ -74,7 +74,7 @@ fn despawn_entity(
     entities: Query<Entity, With<GameEntity>>,
 ) {
     for entity in entities.iter() {
-        commands.entity(entity).despawn();
+        commands.entity(entity).despawn_recursive();
     }
 }
 fn handle_collision(

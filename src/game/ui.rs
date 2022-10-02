@@ -1,6 +1,7 @@
 use super::{GameEntity, GameState, PlayerCoolingTimer};
 use crate::loading::FontAssets;
 use crate::KeyCode::V;
+use bevy::ecs::schedule::ShouldRun::No;
 use bevy::prelude::*;
 
 pub struct UiPlugin;
@@ -16,7 +17,9 @@ mod colors {
     pub const BUTTON_NORMAL_COLOR: Color = Color::rgb(0.3, 0.3, 0.3);
     pub const BUTTON_HOVERD_COLOR: Color = Color::rgb(0.4, 0.4, 0.4);
     pub const BUTTON_CLICKED_COLOR: Color = Color::rgb(0.6, 0.6, 0.6);
-    pub const SCORE_SIZE: f32 = 20.0;
+    pub const SCORE_SIZE: f32 = 50.0;
+    pub const FUEL_BAR_SIZE: Val = Val::Px(100.0);
+    pub const FUEL_BAR_COLOR: Color = Color::rgb(0.0, 1.0, 0.0);
 }
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
@@ -52,10 +55,11 @@ fn ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
         .spawn_bundle(NodeBundle {
             style: Style {
                 margin: UiRect::all(Val::Auto),
-                size: Size::new(Val::Auto, Val::Px(400.0)),
-                justify_content: JustifyContent::FlexEnd,
-                align_content: AlignContent::Center,
-                flex_direction: FlexDirection::RowReverse,
+                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                flex_direction: FlexDirection::ColumnReverse,
+                justify_content: JustifyContent::FlexStart,
+                align_content: AlignContent::SpaceBetween,
+
                 ..default()
             },
             color: Color::rgba(1.0, 0.0, 0.0, 0.3).into(),
@@ -80,6 +84,14 @@ fn ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                     }),
                 )
                 .insert(GameEntity);
+            parent.spawn_bundle(NodeBundle {
+                style: Style {
+                    size: Size::new(Val::Percent(100.0), colors::FUEL_BAR_SIZE),
+                    ..default()
+                },
+                color: colors::FUEL_BAR_COLOR.into(),
+                ..default()
+            });
         });
 }
 fn ui_run(
