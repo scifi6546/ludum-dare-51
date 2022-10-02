@@ -9,6 +9,8 @@ impl Plugin for PlayerPlugin {
         app.add_system_set(
             SystemSet::on_enter(GameState::Game).with_system(spawn_player),
         )
+        .insert_resource(MaxScore::default())
+        .insert_resource(MaxScore::default())
         .add_system_set(
             SystemSet::on_update(GameState::Game)
                 .with_system(input_system)
@@ -18,12 +20,23 @@ impl Plugin for PlayerPlugin {
         );
     }
 }
+pub struct MaxScore {
+    pub score: PlayerScore,
+}
+impl Default for MaxScore {
+    fn default() -> Self {
+        Self {
+            score: PlayerScore::new(),
+        }
+    }
+}
 #[derive(Component)]
 pub struct PlayerCamera;
 #[derive(Component)]
 pub struct PlayerScore {
     max_score: f32,
 }
+
 impl PlayerScore {
     pub fn set_score(&mut self, new_score: f32) {
         self.max_score = new_score.max(self.max_score);
@@ -151,9 +164,11 @@ fn update_camera_height(
 }
 fn update_score(
     mut player_query: Query<(&Transform, &mut PlayerScore), With<PlayerLabel>>,
+    mut score: ResMut<MaxScore>,
 ) {
-    for (transform, mut score) in player_query.iter_mut() {
-        score.set_score(transform.translation.y);
+    for (transform, mut current_score) in player_query.iter_mut() {
+        current_score.set_score(transform.translation.y);
+        score.score.set_score(transform.translation.y);
     }
 }
 fn spawn_player(

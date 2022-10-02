@@ -9,7 +9,9 @@ use bevy::{
 };
 use bevy_rapier2d::{prelude::*, rapier::dynamics::RigidBodyBuilder};
 use bevy_turborand::{prelude::*, *};
-pub use player::{PlayerCoolingTimer, PlayerFuel, PlayerLabel};
+pub use player::{
+    MaxScore, PlayerCoolingTimer, PlayerFuel, PlayerLabel, PlayerScore,
+};
 use std::time::Duration;
 
 struct PlayerCollisions {
