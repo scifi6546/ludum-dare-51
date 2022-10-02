@@ -56,7 +56,7 @@ fn clear_gameover(
     entity_query: Query<Entity, With<GameOverMenuEntity>>,
 ) {
     for entity in entity_query.iter() {
-        commands.entity(entity).despawn();
+        commands.entity(entity).despawn_recursive();
     }
 }
 fn spawn_game_ui(mut commands: Commands, fonts: Res<FontAssets>) {
