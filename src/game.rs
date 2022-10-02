@@ -1,7 +1,7 @@
 mod player;
 mod ui;
 
-use crate::GameState;
+use crate::{loading::TextureAssets, GameState};
 use bevy::{
     input::{keyboard::KeyCode, Input},
     prelude::*,
@@ -63,14 +63,15 @@ fn spawn_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    textures: Res<TextureAssets>,
 ) {
+    let mut transform =
+        Transform::from_translation(Vec3::new(0.0, -300.0, 0.0));
+    transform.scale = Vec3::new(4.0, 4.0, 4.0);
     commands
-        .spawn_bundle(MaterialMesh2dBundle {
-            mesh: meshes
-                .add(shape::Box::new(100.0, 100.0, 100.0).into())
-                .into(),
-            material: materials.add(ColorMaterial::from(Color::GRAY)),
-            transform: Transform::from_translation(Vec3::new(0.0, -300.0, 0.0)),
+        .spawn_bundle(SpriteBundle {
+            texture: textures.grass.clone(),
+            transform,
             ..default()
         })
         .insert(Collider::cuboid(50.0, 50.0))
@@ -155,36 +156,13 @@ fn insert_spawn(
     mut meshes: ResMut<Assets<Mesh>>,
     mut fuel_spawn: ResMut<FuelCurrentlySpawned>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    textures: Res<TextureAssets>,
 ) {
     commands.spawn_bundle(FuelSpawnerBundle {
         label: FuelSpawnerLabel,
         rng: RngComponent::from(&mut global_rng),
         ..default()
     });
-    const NUM_SPAWN: u32 = 100;
-    const MAX_HEIGHT: f32 = 10_000.0;
-    for i in 0..NUM_SPAWN {
-        if fuel_spawn.spawned >= fuel_spawn.max_spawn {
-            return;
-        }
-        let x = 500.0 * global_rng.f32_normalized();
-
-        let y = 10.0 * global_rng.f32_normalized()
-            + (i as f32 / NUM_SPAWN as f32) * MAX_HEIGHT;
-        commands
-            .spawn_bundle(MaterialMesh2dBundle {
-                mesh: meshes.add(shape::Circle::new(FUEL_RADIUS).into()).into(),
-                material: materials.add(ColorMaterial::from(Color::RED)),
-                transform: Transform::from_translation(Vec3::new(x, y, 0.0)),
-                ..default()
-            })
-            .insert(Collider::ball(FUEL_RADIUS))
-            .insert(ActiveEvents::all())
-            .insert(Sensor)
-            .insert(FuelTag)
-            .insert(GameEntity);
-        fuel_spawn.spawned += 1;
-    }
 }
 struct FuelCurrentlySpawned {
     spawned: u32,
@@ -206,6 +184,7 @@ fn tick_spawn(
     mut meshes: ResMut<Assets<Mesh>>,
     mut fuel_spawn: ResMut<FuelCurrentlySpawned>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    textures: Res<TextureAssets>,
 ) {
     let player_transform = player_query.iter().next();
     if player_transform.is_none() {
@@ -228,19 +207,17 @@ fn tick_spawn(
                 * player_transform.translation.y.max(100.0).ln()
                 / 100.0;
             info!("next spawn: {}", next_spawn);
+            let mut transform =
+                Transform::from_translation(Vec3::new(x, y, 0.0));
+            transform.scale = Vec3::new(4.0, 4.0, 4.0);
             spawner.timer.reset();
             spawner
                 .timer
                 .set_duration(Duration::from_secs_f32(next_spawn));
             commands
-                .spawn_bundle(MaterialMesh2dBundle {
-                    mesh: meshes
-                        .add(shape::Circle::new(FUEL_RADIUS).into())
-                        .into(),
-                    material: materials.add(ColorMaterial::from(Color::RED)),
-                    transform: Transform::from_translation(Vec3::new(
-                        x, y, 0.0,
-                    )),
+                .spawn_bundle(SpriteBundle {
+                    texture: textures.fuel.clone(),
+                    transform,
                     ..default()
                 })
                 .insert(Collider::ball(FUEL_RADIUS))

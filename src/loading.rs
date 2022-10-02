@@ -17,6 +17,12 @@ impl Plugin for LoadingPlugin {
 pub struct TextureAssets {
     //#[asset(path = "bevy.png")]
     //pub texture: Handle<Image>,
+    #[asset(path = "textures/spaceship.png")]
+    pub spaceship: Handle<Image>,
+    #[asset(path = "textures/fuel.png")]
+    pub fuel: Handle<Image>,
+    #[asset(path = "textures/grass.png")]
+    pub grass: Handle<Image>,
 }
 #[derive(AssetCollection)]
 pub struct FontAssets {

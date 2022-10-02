@@ -1,4 +1,5 @@
 use super::{GameEntity, GameState};
+use crate::loading::TextureAssets;
 use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
 use bevy_rapier2d::prelude::*;
 use std::time::Duration;
@@ -175,18 +176,19 @@ fn spawn_player(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    textures: Res<TextureAssets>,
 ) {
+    let mut transform = Transform::from_translation(Vec3::new(0.0, 0.0, 0.0));
+    transform.scale = Vec3::new(4.0, 4.0, 4.0);
     commands
         .spawn_bundle(Camera2dBundle::default())
         .insert(GameEntity)
         .insert(PlayerCamera);
     let radius = 10.0;
-
     commands
-        .spawn_bundle(MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Circle::new(radius).into()).into(),
-            material: materials.add(ColorMaterial::from(Color::BLUE)),
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+        .spawn_bundle(SpriteBundle {
+            texture: textures.spaceship.clone(),
+            transform,
             ..default()
         })
         .insert(PlayerLabel)
