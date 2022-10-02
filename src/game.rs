@@ -140,13 +140,42 @@ struct FuelSpawnerBundle {
     label: FuelSpawnerLabel,
     rng: RngComponent,
 }
-
-fn insert_spawn(mut commands: Commands, mut global_rng: ResMut<GlobalRng>) {
+fn spawn_fn(x: f32) -> f32 {
+    1.0 / x
+}
+const FUEL_RADIUS: f32 = 10.0;
+fn insert_spawn(
+    mut commands: Commands,
+    mut global_rng: ResMut<GlobalRng>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
     commands.spawn_bundle(FuelSpawnerBundle {
         label: FuelSpawnerLabel,
         rng: RngComponent::from(&mut global_rng),
         ..default()
     });
+    for i in 0..10 {
+        let x = spawn_fn(global_rng.f32());
+
+        let y = 100.0 * global_rng.f32();
+        commands
+            .spawn_bundle(MaterialMesh2dBundle {
+                mesh: meshes.add(shape::Circle::new(FUEL_RADIUS).into()).into(),
+                material: materials.add(ColorMaterial::from(Color::RED)),
+                transform: Transform::from_translation(Vec3::new(
+                    x,
+                    -100.0 + y,
+                    0.0,
+                )),
+                ..default()
+            })
+            .insert(Collider::ball(FUEL_RADIUS))
+            .insert(ActiveEvents::all())
+            .insert(Sensor)
+            .insert(FuelTag)
+            .insert(GameEntity);
+    }
 }
 fn tick_spawn(
     mut commands: Commands,
@@ -155,11 +184,12 @@ fn tick_spawn(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let radius = 10.0;
     for (mut spawner, mut rng) in query.iter_mut() {
         spawner.timer.tick(time.delta());
         if spawner.timer.finished() {
             let x = 100.0 * rng.f32_normalized();
+            let x = spawn_fn(x);
+
             let y = 100.0 * rng.f32_normalized();
 
             spawner.timer.reset();
@@ -168,7 +198,9 @@ fn tick_spawn(
                 .set_duration(Duration::from_secs_f32(rng.f32()));
             commands
                 .spawn_bundle(MaterialMesh2dBundle {
-                    mesh: meshes.add(shape::Circle::new(radius).into()).into(),
+                    mesh: meshes
+                        .add(shape::Circle::new(FUEL_RADIUS).into())
+                        .into(),
                     material: materials.add(ColorMaterial::from(Color::RED)),
                     transform: Transform::from_translation(Vec3::new(
                         x,
@@ -177,7 +209,7 @@ fn tick_spawn(
                     )),
                     ..default()
                 })
-                .insert(Collider::ball(radius))
+                .insert(Collider::ball(FUEL_RADIUS))
                 .insert(ActiveEvents::all())
                 .insert(Sensor)
                 .insert(FuelTag)
