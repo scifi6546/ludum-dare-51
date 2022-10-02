@@ -57,7 +57,7 @@ fn ui_system(mut commands: Commands, fonts: Res<FontAssets>) {
                 margin: UiRect::all(Val::Auto),
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 flex_direction: FlexDirection::ColumnReverse,
-                justify_content: JustifyContent::SpaceAround,
+                justify_content: JustifyContent::SpaceBetween,
                 align_content: AlignContent::SpaceBetween,
 
                 ..default()
