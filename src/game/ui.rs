@@ -81,7 +81,7 @@ fn spawn_game_ui(mut commands: Commands, fonts: Res<FontAssets>) {
             parent
                 .spawn_bundle(
                     TextBundle::from_section(
-                        "1000!!!",
+                        "0",
                         TextStyle {
                             font: fonts.silkscreen.clone(),
                             font_size: colors::SCORE_SIZE,
@@ -173,7 +173,7 @@ fn spawn_game_over(
                 ))
                 .insert(GameOverMenuEntity);
             parent.spawn_bundle(TextBundle::from_section(
-                format!("MAX SCORE: {}", max_score.score.get_score()),
+                format!("HIGH SCORE: {}", max_score.score.get_score()),
                 TextStyle {
                     font: fonts.silkscreen.clone(),
                     font_size: colors::SCORE_SIZE,

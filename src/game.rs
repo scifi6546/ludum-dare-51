@@ -20,11 +20,13 @@ struct PlayerCollisions {
 #[derive(Component)]
 pub struct GameEntity;
 pub struct GamePlugin;
+
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(
             100.0,
         ))
+        .insert_resource(FuelCurrentlySpawned::new(1000))
         .add_plugin(ui::UiPlugin)
         .add_plugin(RngPlugin::default())
         .add_plugin(RapierDebugRenderPlugin::default())
@@ -37,11 +39,14 @@ impl Plugin for GamePlugin {
         .add_system_set(
             SystemSet::on_update(GameState::Game)
                 .with_system(handle_collision)
-                .with_system(tick_spawn),
+                .with_system(tick_spawn)
+                .with_system(clean_up_fuel),
         )
         .add_system_to_stage(CoreStage::PostUpdate, collision)
         .add_system_set(
-            SystemSet::on_exit(GameState::Game).with_system(despawn_entity),
+            SystemSet::on_exit(GameState::Game)
+                .with_system(despawn_entity)
+                .with_system(reset_fuel_spawn),
         );
     }
 }
@@ -148,6 +153,7 @@ fn insert_spawn(
     mut commands: Commands,
     mut global_rng: ResMut<GlobalRng>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut fuel_spawn: ResMut<FuelCurrentlySpawned>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     commands.spawn_bundle(FuelSpawnerBundle {
@@ -155,19 +161,21 @@ fn insert_spawn(
         rng: RngComponent::from(&mut global_rng),
         ..default()
     });
-    for i in 0..10 {
-        let x = spawn_fn(global_rng.f32());
+    const NUM_SPAWN: u32 = 100;
+    const MAX_HEIGHT: f32 = 10_000.0;
+    for i in 0..NUM_SPAWN {
+        if fuel_spawn.spawned >= fuel_spawn.max_spawn {
+            return;
+        }
+        let x = 500.0 * global_rng.f32_normalized();
 
-        let y = 100.0 * global_rng.f32();
+        let y = 10.0 * global_rng.f32_normalized()
+            + (i as f32 / NUM_SPAWN as f32) * MAX_HEIGHT;
         commands
             .spawn_bundle(MaterialMesh2dBundle {
                 mesh: meshes.add(shape::Circle::new(FUEL_RADIUS).into()).into(),
                 material: materials.add(ColorMaterial::from(Color::RED)),
-                transform: Transform::from_translation(Vec3::new(
-                    x,
-                    -100.0 + y,
-                    0.0,
-                )),
+                transform: Transform::from_translation(Vec3::new(x, y, 0.0)),
                 ..default()
             })
             .insert(Collider::ball(FUEL_RADIUS))
@@ -175,27 +183,55 @@ fn insert_spawn(
             .insert(Sensor)
             .insert(FuelTag)
             .insert(GameEntity);
+        fuel_spawn.spawned += 1;
+    }
+}
+struct FuelCurrentlySpawned {
+    spawned: u32,
+    max_spawn: u32,
+}
+impl FuelCurrentlySpawned {
+    pub fn new(max_spawn: u32) -> Self {
+        Self {
+            spawned: 0,
+            max_spawn,
+        }
     }
 }
 fn tick_spawn(
     mut commands: Commands,
     mut query: Query<(&mut FuelSpawner, &mut RngComponent), ()>,
+    player_query: Query<&Transform, With<PlayerLabel>>,
     time: Res<Time>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut fuel_spawn: ResMut<FuelCurrentlySpawned>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
+    let player_transform = player_query.iter().next();
+    if player_transform.is_none() {
+        error!("player does not exist");
+        return;
+    }
+    let player_transform = player_transform.unwrap();
     for (mut spawner, mut rng) in query.iter_mut() {
+        if fuel_spawn.spawned >= fuel_spawn.max_spawn {
+            return;
+        }
+        fuel_spawn.spawned += 1;
         spawner.timer.tick(time.delta());
         if spawner.timer.finished() {
-            let x = 100.0 * rng.f32_normalized();
-            let x = spawn_fn(x);
+            let x = 500.0 * rng.f32_normalized();
 
-            let y = 100.0 * rng.f32_normalized();
-
+            let y =
+                1000.0 * rng.f32_normalized() + player_transform.translation.y;
+            let next_spawn = rng.f32()
+                * player_transform.translation.y.max(100.0).ln()
+                / 100.0;
+            info!("next spawn: {}", next_spawn);
             spawner.timer.reset();
             spawner
                 .timer
-                .set_duration(Duration::from_secs_f32(rng.f32()));
+                .set_duration(Duration::from_secs_f32(next_spawn));
             commands
                 .spawn_bundle(MaterialMesh2dBundle {
                     mesh: meshes
@@ -203,9 +239,7 @@ fn tick_spawn(
                         .into(),
                     material: materials.add(ColorMaterial::from(Color::RED)),
                     transform: Transform::from_translation(Vec3::new(
-                        x,
-                        -100.0 + y,
-                        0.0,
+                        x, y, 0.0,
                     )),
                     ..default()
                 })
@@ -216,4 +250,33 @@ fn tick_spawn(
                 .insert(GameEntity);
         }
     }
+}
+const FUEL_MAX_Y_DIST: f32 = 1000.0;
+fn clean_up_fuel(
+    mut commands: Commands,
+    mut p_set: ParamSet<(
+        Query<(Entity, &Transform), With<FuelTag>>,
+        Query<&Transform, With<PlayerLabel>>,
+    )>,
+    mut fuel_spawn: ResMut<FuelCurrentlySpawned>,
+) {
+    let player_query = p_set.p1();
+    let player_transform = player_query.iter().next();
+    if player_transform.is_none() {
+        error!("player not found");
+        return;
+    }
+    let player_transform = player_transform.unwrap();
+    let player_y = player_transform.translation.y;
+    let fuel_query = p_set.p0();
+    for (entity, fuel_transform) in fuel_query.iter() {
+        let fuel_y = fuel_transform.translation.y;
+        if (fuel_y - player_y).abs() > FUEL_MAX_Y_DIST {
+            commands.entity(entity).despawn_recursive();
+            fuel_spawn.spawned -= 1;
+        }
+    }
+}
+fn reset_fuel_spawn(mut counter: ResMut<FuelCurrentlySpawned>) {
+    counter.spawned = 0;
 }
